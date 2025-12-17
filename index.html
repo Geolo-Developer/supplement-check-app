@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>サプリチェック</title>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel (JSX変換用) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // アイコンコンポーネント（SVG直書き）
+        const CoffeeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>;
+        const SunIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
+        const MoonIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
+        const CheckCircleIcon = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+        const PillIcon = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>;
+
+        function App() {
+            const getTodayString = () => new Date().toISOString().split('T')[0];
+            const [checks, setChecks] = React.useState({ morning: false, lunch: false, dinner: false });
+            const [lastDate, setLastDate] = React.useState(getTodayString());
+            const [isLoaded, setIsLoaded] = React.useState(false);
+
+            React.useEffect(() => {
+                const loadData = () => {
+                    const today = getTodayString();
+                    const storedJson = localStorage.getItem('supplement-check-data');
+                    
+                    if (storedJson) {
+                        try {
+                            const storedData = JSON.parse(storedJson);
+                            if (storedData.date !== today) {
+                                const newData = { date: today, checks: { morning: false, lunch: false, dinner: false } };
+                                setChecks(newData.checks);
+                                setLastDate(today);
+                                localStorage.setItem('supplement-check-data', JSON.stringify(newData));
+                            } else {
+                                setChecks(storedData.checks);
+                                setLastDate(storedData.date);
+                            }
+                        } catch (e) { console.error(e); }
+                    } else {
+                        setLastDate(today);
+                    }
+                    setIsLoaded(true);
+                };
+                loadData();
+                document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && loadData());
+            }, []);
+
+            const toggleCheck = (slot) => {
+                const today = getTodayString();
+                if (today !== lastDate) {
+                    const newData = { date: today, checks: { morning: false, lunch: false, dinner: false } };
+                    setChecks(newData.checks);
+                    setLastDate(today);
+                    localStorage.setItem('supplement-check-data', JSON.stringify(newData));
+                    return; 
+                }
+                const newChecks = { ...checks, [slot]: !checks[slot] };
+                setChecks(newChecks);
+                localStorage.setItem('supplement-check-data', JSON.stringify({ date: today, checks: newChecks }));
+            };
+
+            const completedCount = Object.values(checks).filter(Boolean).length;
+            const progress = (completedCount / 3) * 100;
+            const todayDisplay = new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+
+            if (!isLoaded) return null;
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex justify-center">
+                    <div className="w-full max-w-md bg-white shadow-xl min-h-screen flex flex-col">
+                        <header className="bg-emerald-600 text-white p-6 rounded-b-[2rem] shadow-lg z-10">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <p className="text-emerald-100 text-sm font-medium">サプリメント管理</p>
+                                    <h1 className="text-3xl font-bold">{todayDisplay}</h1>
+                                </div>
+                                <div className="bg-white/20 p-2 rounded-full"><PillIcon className="w-8 h-8 text-white" /></div>
+                            </div>
+                            <div className="mt-4">
+                                <div className="flex justify-between text-xs font-semibold mb-1 text-emerald-100">
+                                    <span>今日の達成度</span><span>{completedCount} / 3</span>
+                                </div>
+                                <div className="w-full bg-emerald-800/30 rounded-full h-3 backdrop-blur-sm">
+                                    <div className="bg-white h-3 rounded-full transition-all duration-500 shadow-sm" style={{ width: `${progress}%` }} />
+                                </div>
+                            </div>
+                        </header>
+                        <main className="flex-1 p-6 flex flex-col gap-4 justify-center">
+                            <TimeSlotCard slot="morning" label="朝食後" icon={<CoffeeIcon />} isChecked={checks.morning} onToggle={() => toggleCheck('morning')} colorClass="text-orange-500 bg-orange-50 border-orange-100" />
+                            <TimeSlotCard slot="lunch" label="昼食後" icon={<SunIcon />} isChecked={checks.lunch} onToggle={() => toggleCheck('lunch')} colorClass="text-sky-500 bg-sky-50 border-sky-100" />
+                            <TimeSlotCard slot="dinner" label="夕食後" icon={<MoonIcon />} isChecked={checks.dinner} onToggle={() => toggleCheck('dinner')} colorClass="text-indigo-500 bg-indigo-50 border-indigo-100" />
+                        </main>
+                        <footer className="p-6 text-center text-slate-400 text-xs">
+                            {completedCount === 3 ? <p className="text-emerald-600 font-bold animate-pulse">🎉 今日の目標達成！</p> : <p>明日になるとリセットされます</p>}
+                        </footer>
+                    </div>
+                </div>
+            );
+        }
+
+        function TimeSlotCard({ label, icon, isChecked, onToggle, colorClass }) {
+            return (
+                <button onClick={onToggle} className={`relative w-full p-5 rounded-2xl border-2 transition-all duration-300 flex items-center justify-between ${isChecked ? 'bg-white border-emerald-500 shadow-sm' : `hover:shadow-md ${colorClass} border-transparent`}`}>
+                    <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-full transition-colors duration-300 ${isChecked ? 'bg-emerald-100 text-emerald-600' : 'bg-white shadow-sm'}`}>{isChecked ? <CheckCircleIcon className="w-6 h-6" /> : icon}</div>
+                        <div className="text-left">
+                            <span className={`block text-xs font-bold uppercase tracking-wider mb-0.5 ${isChecked ? 'text-emerald-600' : 'text-slate-500'}`}>{isChecked ? '摂取済み' : '未摂取'}</span>
+                            <span className={`text-xl font-bold ${isChecked ? 'text-slate-800' : 'text-slate-700'}`}>{label}</span>
+                        </div>
+                    </div>
+                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${isChecked ? 'bg-emerald-500 border-emerald-500 scale-110' : 'border-slate-300 bg-white'}`}>{isChecked && <CheckCircleIcon className="w-5 h-5 text-white" />}</div>
+                </button>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
