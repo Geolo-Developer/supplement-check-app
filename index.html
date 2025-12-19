@@ -3,126 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>サプリチェック</title>
-    <!-- React & ReactDOM -->
+    <title>サプリリマインダー</title>
+    <link rel="manifest" href="data:application/json,{'name':'サプリチェック','short_name':'サプリ','start_url':'.','display':'standalone','background_color':'#f8fafc','theme_color':'#059669'}">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel (JSX変換用) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { -webkit-tap-highlight-color: transparent; }
+        .animate-bounce-subtle { animation: bounce 2s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
     <div id="root"></div>
 
     <script type="text/babel">
-        // アイコンコンポーネント（SVG直書き）
         const CoffeeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>;
         const SunIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
         const MoonIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
-        const CheckCircleIcon = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
-        const PillIcon = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>;
+        const BellIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+        const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 
         function App() {
-            const getTodayString = () => new Date().toISOString().split('T')[0];
             const [checks, setChecks] = React.useState({ morning: false, lunch: false, dinner: false });
-            const [lastDate, setLastDate] = React.useState(getTodayString());
-            const [isLoaded, setIsLoaded] = React.useState(false);
+            const [reminders, setReminders] = React.useState({ morning: "08:00", lunch: "13:00", dinner: "19:00" });
+            const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+            const [lastDate, setLastDate] = React.useState(new Date().toISOString().split('T')[0]);
 
             React.useEffect(() => {
-                const loadData = () => {
-                    const today = getTodayString();
-                    const storedJson = localStorage.getItem('supplement-check-data');
-                    
-                    if (storedJson) {
-                        try {
-                            const storedData = JSON.parse(storedJson);
-                            if (storedData.date !== today) {
-                                const newData = { date: today, checks: { morning: false, lunch: false, dinner: false } };
-                                setChecks(newData.checks);
-                                setLastDate(today);
-                                localStorage.setItem('supplement-check-data', JSON.stringify(newData));
-                            } else {
-                                setChecks(storedData.checks);
-                                setLastDate(storedData.date);
-                            }
-                        } catch (e) { console.error(e); }
-                    } else {
-                        setLastDate(today);
+                const stored = localStorage.getItem('supple-v2');
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    const today = new Date().toISOString().split('T')[0];
+                    if (data.date === today) {
+                        setChecks(data.checks);
                     }
-                    setIsLoaded(true);
-                };
-                loadData();
-                document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && loadData());
+                    if (data.reminders) {
+                        setReminders(data.reminders);
+                    }
+                }
             }, []);
 
-            const toggleCheck = (slot) => {
-                const today = getTodayString();
-                if (today !== lastDate) {
-                    const newData = { date: today, checks: { morning: false, lunch: false, dinner: false } };
-                    setChecks(newData.checks);
-                    setLastDate(today);
-                    localStorage.setItem('supplement-check-data', JSON.stringify(newData));
-                    return; 
-                }
-                const newChecks = { ...checks, [slot]: !checks[slot] };
-                setChecks(newChecks);
-                localStorage.setItem('supplement-check-data', JSON.stringify({ date: today, checks: newChecks }));
+            const save = (newChecks, newReminders) => {
+                const data = {
+                    date: new Date().toISOString().split('T')[0],
+                    checks: newChecks || checks,
+                    reminders: newReminders || reminders
+                };
+                localStorage.setItem('supple-v2', JSON.stringify(data));
             };
 
-            const completedCount = Object.values(checks).filter(Boolean).length;
-            const progress = (completedCount / 3) * 100;
-            const todayDisplay = new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+            const toggleCheck = (slot) => {
+                const next = { ...checks, [slot]: !checks[slot] };
+                setChecks(next);
+                save(next, null);
+            };
 
-            if (!isLoaded) return null;
+            const updateReminder = (slot, time) => {
+                const next = { ...reminders, [slot]: time };
+                setReminders(next);
+                save(null, next);
+            };
+
+            const isMissed = (slot, timeStr) => {
+                if (checks[slot]) return false;
+                const now = new Date();
+                const [h, m] = timeStr.split(':').map(Number);
+                const remindTime = new Date();
+                remindTime.setHours(h, m, 0);
+                return now > remindTime;
+            };
+
+            const todayDisplay = new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
 
             return (
                 <div className="min-h-screen bg-slate-50 flex justify-center">
-                    <div className="w-full max-w-md bg-white shadow-xl min-h-screen flex flex-col">
-                        <header className="bg-emerald-600 text-white p-6 rounded-b-[2rem] shadow-lg z-10">
-                            <div className="flex justify-between items-center mb-4">
+                    <div className="w-full max-w-md bg-white shadow-2xl min-h-screen flex flex-col relative overflow-hidden">
+                        
+                        {/* Header */}
+                        <header className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-b-[2.5rem] shadow-lg relative z-20">
+                            <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-emerald-100 text-sm font-medium">サプリメント管理</p>
-                                    <h1 className="text-3xl font-bold">{todayDisplay}</h1>
+                                    <h1 className="text-3xl font-black tracking-tight">{todayDisplay}</h1>
+                                    <p className="text-emerald-100 opacity-80">今日も忘れずに健康貯金</p>
                                 </div>
-                                <div className="bg-white/20 p-2 rounded-full"><PillIcon className="w-8 h-8 text-white" /></div>
+                                <button 
+                                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                    className="p-2 bg-white/10 rounded-xl hover:bg-white/20 transition-colors"
+                                >
+                                    <BellIcon />
+                                </button>
                             </div>
-                            <div className="mt-4">
-                                <div className="flex justify-between text-xs font-semibold mb-1 text-emerald-100">
-                                    <span>今日の達成度</span><span>{completedCount} / 3</span>
+
+                            {/* Alert for missed doses */}
+                            {(isMissed('morning', reminders.morning) || isMissed('lunch', reminders.lunch) || isMissed('dinner', reminders.dinner)) && (
+                                <div className="mt-4 bg-orange-400/90 backdrop-blur-md p-3 rounded-2xl flex items-center gap-3 animate-bounce-subtle shadow-lg">
+                                    <span className="text-2xl">⚠️</span>
+                                    <p className="text-sm font-bold">まだ飲んでいないサプリがあります！</p>
                                 </div>
-                                <div className="w-full bg-emerald-800/30 rounded-full h-3 backdrop-blur-sm">
-                                    <div className="bg-white h-3 rounded-full transition-all duration-500 shadow-sm" style={{ width: `${progress}%` }} />
-                                </div>
-                            </div>
+                            )}
                         </header>
-                        <main className="flex-1 p-6 flex flex-col gap-4 justify-center">
-                            <TimeSlotCard slot="morning" label="朝食後" icon={<CoffeeIcon />} isChecked={checks.morning} onToggle={() => toggleCheck('morning')} colorClass="text-orange-500 bg-orange-50 border-orange-100" />
-                            <TimeSlotCard slot="lunch" label="昼食後" icon={<SunIcon />} isChecked={checks.lunch} onToggle={() => toggleCheck('lunch')} colorClass="text-sky-500 bg-sky-50 border-sky-100" />
-                            <TimeSlotCard slot="dinner" label="夕食後" icon={<MoonIcon />} isChecked={checks.dinner} onToggle={() => toggleCheck('dinner')} colorClass="text-indigo-500 bg-indigo-50 border-indigo-100" />
+
+                        {/* Settings Overlay */}
+                        {isSettingsOpen && (
+                            <div className="absolute inset-x-0 top-0 bg-slate-900/90 backdrop-blur-md z-30 p-8 pt-20 text-white transition-all rounded-b-3xl shadow-2xl">
+                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                    <BellIcon /> リマインダー設定
+                                </h2>
+                                <div className="space-y-4">
+                                    {['morning', 'lunch', 'dinner'].map(slot => (
+                                        <div key={slot} className="flex items-center justify-between bg-white/10 p-4 rounded-xl">
+                                            <span className="capitalize">{slot === 'morning' ? '朝' : slot === 'lunch' ? '昼' : '晩'}</span>
+                                            <input 
+                                                type="time" 
+                                                value={reminders[slot]} 
+                                                onChange={(e) => updateReminder(slot, e.target.value)}
+                                                className="bg-transparent border-b border-white/30 text-xl font-mono"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                                <button 
+                                    onClick={() => setIsSettingsOpen(false)}
+                                    className="mt-8 w-full py-4 bg-emerald-500 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                                >
+                                    設定を閉じる
+                                </button>
+                            </div>
+                        )}
+
+                        <main className="flex-1 p-6 flex flex-col gap-6 mt-4">
+                            <TimeCard 
+                                label="朝食後" 
+                                icon={<CoffeeIcon />} 
+                                checked={checks.morning} 
+                                onClick={() => toggleCheck('morning')} 
+                                isMissed={isMissed('morning', reminders.morning)}
+                                time={reminders.morning}
+                            />
+                            <TimeCard 
+                                label="昼食後" 
+                                icon={<SunIcon />} 
+                                checked={checks.lunch} 
+                                onClick={() => toggleCheck('lunch')} 
+                                isMissed={isMissed('lunch', reminders.lunch)}
+                                time={reminders.lunch}
+                            />
+                            <TimeCard 
+                                label="夕食後" 
+                                icon={<MoonIcon />} 
+                                checked={checks.dinner} 
+                                onClick={() => toggleCheck('dinner')} 
+                                isMissed={isMissed('dinner', reminders.dinner)}
+                                time={reminders.dinner}
+                            />
                         </main>
-                        <footer className="p-6 text-center text-slate-400 text-xs">
-                            {completedCount === 3 ? <p className="text-emerald-600 font-bold animate-pulse">🎉 今日の目標達成！</p> : <p>明日になるとリセットされます</p>}
+
+                        <footer className="p-8 text-center bg-slate-50 border-t border-slate-100">
+                             <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mb-2">💡 Tips</p>
+                             <p className="text-slate-500 text-sm leading-relaxed">
+                                このURLをQRコードにして<br/>
+                                <b>サプリボトルの蓋</b>に貼るのが最強です。
+                             </p>
                         </footer>
                     </div>
                 </div>
             );
         }
 
-        function TimeSlotCard({ label, icon, isChecked, onToggle, colorClass }) {
+        function TimeCard({ label, icon, checked, onClick, isMissed, time }) {
             return (
-                <button onClick={onToggle} className={`relative w-full p-5 rounded-2xl border-2 transition-all duration-300 flex items-center justify-between ${isChecked ? 'bg-white border-emerald-500 shadow-sm' : `hover:shadow-md ${colorClass} border-transparent`}`}>
+                <button 
+                    onClick={onClick}
+                    className={`
+                        relative w-full p-6 rounded-3xl flex items-center justify-between transition-all duration-300
+                        ${checked 
+                            ? 'bg-emerald-50 border-2 border-emerald-500 shadow-inner translate-y-1' 
+                            : isMissed 
+                                ? 'bg-orange-50 border-2 border-orange-400 animate-pulse' 
+                                : 'bg-white border-2 border-transparent shadow-xl active:scale-95'
+                        }
+                    `}
+                >
                     <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-full transition-colors duration-300 ${isChecked ? 'bg-emerald-100 text-emerald-600' : 'bg-white shadow-sm'}`}>{isChecked ? <CheckCircleIcon className="w-6 h-6" /> : icon}</div>
+                        <div className={`
+                            p-4 rounded-2xl transition-colors
+                            ${checked ? 'bg-emerald-500 text-white' : isMissed ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500'}
+                        `}>
+                            {checked ? <CheckIcon /> : icon}
+                        </div>
                         <div className="text-left">
-                            <span className={`block text-xs font-bold uppercase tracking-wider mb-0.5 ${isChecked ? 'text-emerald-600' : 'text-slate-500'}`}>{isChecked ? '摂取済み' : '未摂取'}</span>
-                            <span className={`text-xl font-bold ${isChecked ? 'text-slate-800' : 'text-slate-700'}`}>{label}</span>
+                            <p className="text-sm font-bold opacity-40">{time}</p>
+                            <h3 className={`text-2xl font-black ${checked ? 'text-emerald-700' : 'text-slate-700'}`}>{label}</h3>
                         </div>
                     </div>
-                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${isChecked ? 'bg-emerald-500 border-emerald-500 scale-110' : 'border-slate-300 bg-white'}`}>{isChecked && <CheckCircleIcon className="w-5 h-5 text-white" />}</div>
+                    {isMissed && !checked && (
+                        <div className="bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter">
+                            MISS!
+                        </div>
+                    )}
                 </button>
             );
         }
