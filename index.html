@@ -3,206 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>サプリリマインダー</title>
-    <link rel="manifest" href="data:application/json,{'name':'サプリチェック','short_name':'サプリ','start_url':'.','display':'standalone','background_color':'#f8fafc','theme_color':'#059669'}">
+    <title>サプリリマインダーPro</title>
+    <!-- PWA設定 -->
+    <link rel="manifest" href="data:application/json,{'name':'サプリ管理','short_name':'サプリ','start_url':'.','display':'standalone','background_color':'#f8fafc','theme_color':'#059669'}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { -webkit-tap-highlight-color: transparent; }
-        .animate-bounce-subtle { animation: bounce 2s infinite; }
-        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-    </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
     <div id="root"></div>
 
     <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // アイコンコンポーネント
+        const BellIcon = ({ active }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
         const CoffeeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>;
         const SunIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
         const MoonIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
-        const BellIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
-        const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 
         function App() {
-            const [checks, setChecks] = React.useState({ morning: false, lunch: false, dinner: false });
-            const [reminders, setReminders] = React.useState({ morning: "08:00", lunch: "13:00", dinner: "19:00" });
-            const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
-            const [lastDate, setLastDate] = React.useState(new Date().toISOString().split('T')[0]);
+            const [checks, setChecks] = useState({ morning: false, lunch: false, dinner: false });
+            const [reminders, setReminders] = useState({ morning: "08:00", lunch: "13:00", dinner: "19:00" });
+            const [notifPermission, setNotifPermission] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
 
-            React.useEffect(() => {
-                const stored = localStorage.getItem('supple-v2');
+            // データ読み込み
+            useEffect(() => {
+                const stored = localStorage.getItem('supple-pro-v1');
                 if (stored) {
                     const data = JSON.parse(stored);
                     const today = new Date().toISOString().split('T')[0];
-                    if (data.date === today) {
-                        setChecks(data.checks);
-                    }
-                    if (data.reminders) {
-                        setReminders(data.reminders);
-                    }
+                    if (data.date === today) setChecks(data.checks);
+                    if (data.reminders) setReminders(data.reminders);
                 }
-            }, []);
+                
+                // 1分ごとにチェックして、時間が来たらブラウザ通知を試みる
+                const interval = setInterval(() => {
+                    checkAndNotify();
+                }, 60000);
+                return () => clearInterval(interval);
+            }, [checks, reminders]);
 
-            const save = (newChecks, newReminders) => {
-                const data = {
-                    date: new Date().toISOString().split('T')[0],
-                    checks: newChecks || checks,
-                    reminders: newReminders || reminders
-                };
-                localStorage.setItem('supple-v2', JSON.stringify(data));
+            const checkAndNotify = () => {
+                if (Notification.permission !== 'granted') return;
+                
+                const now = new Date();
+                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                const slots = [
+                    { key: 'morning', label: '朝', time: reminders.morning },
+                    { key: 'lunch', label: '昼', time: reminders.lunch },
+                    { key: 'dinner', label: '夜', time: reminders.dinner }
+                ];
+
+                slots.forEach(slot => {
+                    if (slot.time === currentTime && !checks[slot.key]) {
+                        new Notification("サプリの時間です！", {
+                            body: `${slot.label}のサプリを飲みましたか？タップして記録しましょう。`,
+                            icon: "https://cdn-icons-png.flaticon.com/512/1043/1043439.png"
+                        });
+                    }
+                });
+            };
+
+            const requestPermission = async () => {
+                if (!('Notification' in window)) {
+                    alert("このブラウザは通知に対応していません。iPhoneの場合は『ホーム画面に追加』してから開いてください。");
+                    return;
+                }
+                const permission = await Notification.requestPermission();
+                setNotifPermission(permission);
+                if (permission === 'granted') {
+                    new Notification("通知が許可されました！", { body: "時間になるとここでお知らせします。" });
+                }
             };
 
             const toggleCheck = (slot) => {
                 const next = { ...checks, [slot]: !checks[slot] };
                 setChecks(next);
-                save(next, null);
+                localStorage.setItem('supple-pro-v1', JSON.stringify({
+                    date: new Date().toISOString().split('T')[0],
+                    checks: next,
+                    reminders: reminders
+                }));
             };
-
-            const updateReminder = (slot, time) => {
-                const next = { ...reminders, [slot]: time };
-                setReminders(next);
-                save(null, next);
-            };
-
-            const isMissed = (slot, timeStr) => {
-                if (checks[slot]) return false;
-                const now = new Date();
-                const [h, m] = timeStr.split(':').map(Number);
-                const remindTime = new Date();
-                remindTime.setHours(h, m, 0);
-                return now > remindTime;
-            };
-
-            const todayDisplay = new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
 
             return (
-                <div className="min-h-screen bg-slate-50 flex justify-center">
-                    <div className="w-full max-w-md bg-white shadow-2xl min-h-screen flex flex-col relative overflow-hidden">
+                <div className="min-h-screen bg-slate-100 flex justify-center p-0 sm:p-4">
+                    <div className="w-full max-w-md bg-white shadow-2xl flex flex-col min-h-screen sm:min-h-[844px] sm:rounded-[3rem] overflow-hidden border-[8px] border-slate-800 relative">
                         
-                        {/* Header */}
-                        <header className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-b-[2.5rem] shadow-lg relative z-20">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h1 className="text-3xl font-black tracking-tight">{todayDisplay}</h1>
-                                    <p className="text-emerald-100 opacity-80">今日も忘れずに健康貯金</p>
-                                </div>
+                        {/* Status Bar Decor */}
+                        <div className="h-10 bg-slate-800 w-full flex justify-center items-end pb-1">
+                            <div className="w-24 h-5 bg-black rounded-full"></div>
+                        </div>
+
+                        {/* Top Header */}
+                        <div className="p-8 pb-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <h1 className="text-4xl font-black text-slate-800">My Supple</h1>
                                 <button 
-                                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                    className="p-2 bg-white/10 rounded-xl hover:bg-white/20 transition-colors"
+                                    onClick={requestPermission}
+                                    className={`p-3 rounded-2xl transition-all ${notifPermission === 'granted' ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600 animate-pulse'}`}
                                 >
-                                    <BellIcon />
+                                    <BellIcon active={notifPermission === 'granted'} />
                                 </button>
                             </div>
+                            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
+                                {new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+                            </p>
+                        </div>
 
-                            {/* Alert for missed doses */}
-                            {(isMissed('morning', reminders.morning) || isMissed('lunch', reminders.lunch) || isMissed('dinner', reminders.dinner)) && (
-                                <div className="mt-4 bg-orange-400/90 backdrop-blur-md p-3 rounded-2xl flex items-center gap-3 animate-bounce-subtle shadow-lg">
-                                    <span className="text-2xl">⚠️</span>
-                                    <p className="text-sm font-bold">まだ飲んでいないサプリがあります！</p>
-                                </div>
-                            )}
-                        </header>
-
-                        {/* Settings Overlay */}
-                        {isSettingsOpen && (
-                            <div className="absolute inset-x-0 top-0 bg-slate-900/90 backdrop-blur-md z-30 p-8 pt-20 text-white transition-all rounded-b-3xl shadow-2xl">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <BellIcon /> リマインダー設定
-                                </h2>
-                                <div className="space-y-4">
-                                    {['morning', 'lunch', 'dinner'].map(slot => (
-                                        <div key={slot} className="flex items-center justify-between bg-white/10 p-4 rounded-xl">
-                                            <span className="capitalize">{slot === 'morning' ? '朝' : slot === 'lunch' ? '昼' : '晩'}</span>
-                                            <input 
-                                                type="time" 
-                                                value={reminders[slot]} 
-                                                onChange={(e) => updateReminder(slot, e.target.value)}
-                                                className="bg-transparent border-b border-white/30 text-xl font-mono"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                                <button 
-                                    onClick={() => setIsSettingsOpen(false)}
-                                    className="mt-8 w-full py-4 bg-emerald-500 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
-                                >
-                                    設定を閉じる
-                                </button>
+                        {/* Notification Status Banner */}
+                        {notifPermission !== 'granted' && (
+                            <div className="mx-6 p-4 bg-orange-50 border-2 border-orange-200 rounded-3xl mb-4">
+                                <p className="text-xs font-bold text-orange-800 leading-relaxed">
+                                    💡 iPhoneで通知を受け取るには：<br/>
+                                    1. 下の共有ボタンから「ホーム画面に追加」<br/>
+                                    2. ホーム画面からアプリを開き、上のベルマークを押す
+                                </p>
                             </div>
                         )}
 
-                        <main className="flex-1 p-6 flex flex-col gap-6 mt-4">
-                            <TimeCard 
-                                label="朝食後" 
-                                icon={<CoffeeIcon />} 
-                                checked={checks.morning} 
-                                onClick={() => toggleCheck('morning')} 
-                                isMissed={isMissed('morning', reminders.morning)}
-                                time={reminders.morning}
-                            />
-                            <TimeCard 
-                                label="昼食後" 
-                                icon={<SunIcon />} 
-                                checked={checks.lunch} 
-                                onClick={() => toggleCheck('lunch')} 
-                                isMissed={isMissed('lunch', reminders.lunch)}
-                                time={reminders.lunch}
-                            />
-                            <TimeCard 
-                                label="夕食後" 
-                                icon={<MoonIcon />} 
-                                checked={checks.dinner} 
-                                onClick={() => toggleCheck('dinner')} 
-                                isMissed={isMissed('dinner', reminders.dinner)}
-                                time={reminders.dinner}
-                            />
-                        </main>
+                        {/* Main Cards */}
+                        <div className="px-6 space-y-4 flex-1">
+                            <Card slot="morning" label="朝食後" time={reminders.morning} checked={checks.morning} icon={<CoffeeIcon />} onToggle={() => toggleCheck('morning')} />
+                            <Card slot="lunch" label="昼食後" time={reminders.lunch} checked={checks.lunch} icon={<SunIcon />} onToggle={() => toggleCheck('lunch')} />
+                            <Card slot="dinner" label="夕食後" time={reminders.dinner} checked={checks.dinner} icon={<MoonIcon />} onToggle={() => toggleCheck('dinner')} />
+                        </div>
 
-                        <footer className="p-8 text-center bg-slate-50 border-t border-slate-100">
-                             <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mb-2">💡 Tips</p>
-                             <p className="text-slate-500 text-sm leading-relaxed">
-                                このURLをQRコードにして<br/>
-                                <b>サプリボトルの蓋</b>に貼るのが最強です。
-                             </p>
-                        </footer>
+                        {/* Time Settings Area */}
+                        <div className="p-8 bg-slate-50 border-t border-slate-100">
+                            <h2 className="text-sm font-black text-slate-400 mb-4 uppercase tracking-tighter">通知時間の変更</h2>
+                            <div className="grid grid-cols-3 gap-3">
+                                {['morning', 'lunch', 'dinner'].map(s => (
+                                    <div key={s} className="bg-white p-2 rounded-2xl border border-slate-200">
+                                        <p className="text-[10px] text-center font-bold text-slate-400">{s === 'morning' ? '朝' : s === 'lunch' ? '昼' : '晩'}</p>
+                                        <input 
+                                            type="time" 
+                                            className="w-full text-center font-bold text-sm bg-transparent outline-none"
+                                            value={reminders[s]}
+                                            onChange={(e) => {
+                                                const next = {...reminders, [s]: e.target.value};
+                                                setReminders(next);
+                                                localStorage.setItem('supple-pro-v1', JSON.stringify({
+                                                    date: new Date().toISOString().split('T')[0],
+                                                    checks: checks,
+                                                    reminders: next
+                                                }));
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
         }
 
-        function TimeCard({ label, icon, checked, onClick, isMissed, time }) {
+        function Card({ label, time, checked, icon, onToggle }) {
             return (
                 <button 
-                    onClick={onClick}
-                    className={`
-                        relative w-full p-6 rounded-3xl flex items-center justify-between transition-all duration-300
-                        ${checked 
-                            ? 'bg-emerald-50 border-2 border-emerald-500 shadow-inner translate-y-1' 
-                            : isMissed 
-                                ? 'bg-orange-50 border-2 border-orange-400 animate-pulse' 
-                                : 'bg-white border-2 border-transparent shadow-xl active:scale-95'
-                        }
-                    `}
+                    onClick={onToggle}
+                    className={`w-full p-6 rounded-[2rem] flex items-center justify-between transition-all duration-500 ${checked ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 translate-y-1' : 'bg-white border-2 border-slate-100 shadow-xl shadow-slate-200/50'}`}
                 >
                     <div className="flex items-center gap-4">
-                        <div className={`
-                            p-4 rounded-2xl transition-colors
-                            ${checked ? 'bg-emerald-500 text-white' : isMissed ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500'}
-                        `}>
-                            {checked ? <CheckIcon /> : icon}
+                        <div className={`p-4 rounded-2xl ${checked ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
+                            {icon}
                         </div>
                         <div className="text-left">
-                            <p className="text-sm font-bold opacity-40">{time}</p>
-                            <h3 className={`text-2xl font-black ${checked ? 'text-emerald-700' : 'text-slate-700'}`}>{label}</h3>
+                            <p className={`text-[10px] font-black uppercase ${checked ? 'text-emerald-100' : 'text-slate-300'}`}>{time} 目安</p>
+                            <h3 className="text-xl font-black">{label}</h3>
                         </div>
                     </div>
-                    {isMissed && !checked && (
-                        <div className="bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter">
-                            MISS!
-                        </div>
-                    )}
+                    <div className={`w-10 h-10 rounded-full border-4 flex items-center justify-center transition-transform ${checked ? 'bg-white border-white scale-110' : 'border-slate-100'}`}>
+                        {checked && <svg className="text-emerald-500 w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 14.14l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 15.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path></svg>}
+                    </div>
                 </button>
             );
         }
